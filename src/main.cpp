@@ -1,10 +1,5 @@
-// =================================================================================================
-// eModbus: Copyright 2020 by Michael Harwerth, Bert Melis and the contributors to ModbusClient
-//               MIT license - see license.md for details
-// =================================================================================================
-
-// Example code to show the usage of the eModbus library. 
-// Please refer to root/Readme.md for a full description.
+// Example code to show the usage of the eModbus library to retrieve data from an Epever Tracer 2206AN Solar charge controller and publish it to a signalK server
+// Please refer to root/Readme.md for a (more)full description.
 
 // Includes: <Arduino.h> for Serial etc.
 #include <Arduino.h>
