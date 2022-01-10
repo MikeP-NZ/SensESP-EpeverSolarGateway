@@ -310,9 +310,9 @@ ReactESP app([]() {
   // Create a builder object
   SensESPAppBuilder builder;
   // Create the global SensESPApp() object.
-  sensesp_app = builder.set_hostname("sk-solar1")
+  sensesp_app = builder.set_hostname("sksolar")
 //                    ->set_wifi("SSID", "password")
-                    ->set_standard_sensors(StandardSensors::NONE)
+                    ->set_standard_sensors(StandardSensors::WIFI_SIGNAL)
                     ->get_app();
 
     panel_voltage = new NumericSensor;
