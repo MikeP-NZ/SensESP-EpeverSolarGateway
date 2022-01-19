@@ -316,43 +316,43 @@ ReactESP app([]() {
                     ->get_app();
 
     panel_voltage = new NumericSensor;
-    panel_voltage->connect_to(new SKOutputNumber("/electrical/solar/epever1/panelVoltage", "", new SKMetadata("V")));
+    panel_voltage->connect_to(new SKOutputNumber("electrical.solar.epever1.panelVoltage", "", new SKMetadata("V")));
 
     panel_current = new NumericSensor;
-    panel_current->connect_to(new SKOutputNumber("/electrical/solar/epever1/panelCurrent", "", new SKMetadata("A")));
+    panel_current->connect_to(new SKOutputNumber("electrical.solar.epever1.panelCurrent", "", new SKMetadata("A")));
     
     charging_mode = new StringSensor;
-    charging_mode->connect_to(new SKOutputString("/electrical/solar/epever1/chargingMode", ""));
+    charging_mode->connect_to(new SKOutputString("electrical.solar.epever1.chargingMode", ""));
     
     charger_voltage = new NumericSensor;
-    charger_voltage->connect_to(new SKOutputNumber("/electrical/solar/epever1/Voltage", "", new SKMetadata("V")));
+    charger_voltage->connect_to(new SKOutputNumber("electrical.solar.epever1.Voltage", "", new SKMetadata("V")));
     
     charger_current = new NumericSensor;
-    charger_current->connect_to(new SKOutputNumber("/electrical/solar/epever1/Current", "", new SKMetadata("A")));
+    charger_current->connect_to(new SKOutputNumber("electrical.solar.epever1.Current", "", new SKMetadata("A")));
     
     load_current = new NumericSensor;
-    load_current->connect_to(new SKOutputNumber("/electrical/solar/epever1/loadCurrent", "", new SKMetadata("A")));
+    load_current->connect_to(new SKOutputNumber("electrical.solar.epever1.loadCurrent", "", new SKMetadata("A")));
     
     charger_temperature = new NumericSensor;
-    charger_temperature->connect_to(new SKOutputNumber("/electrical/solar/epever1/temperature", "", new SKMetadata("K")));
+    charger_temperature->connect_to(new SKOutputNumber("electrical.solar.epever1.temperature", "", new SKMetadata("K")));
     
     battery_temperature = new NumericSensor;
-    battery_temperature->connect_to(new SKOutputNumber("/electrical/batteries/house/temperature", "", new SKMetadata("K")));
+    battery_temperature->connect_to(new SKOutputNumber("electrical.batteries.house.temperature", "", new SKMetadata("K")));
     
     output_today = new NumericSensor;
-    output_today->connect_to(new SKOutputNumber("/electrical/solar/epever1/output/thisDay", "",
+    output_today->connect_to(new SKOutputNumber("electrical.solar.epever1.output.thisDay", "",
         new SKMetadata("J","Solar Output Today", "Solar charger output since midnight today", "Output Day")));
     
     output_this_month = new NumericSensor;
-    output_this_month->connect_to(new SKOutputNumber("/electrical/solar/epever1/output/thisMonth", "",
+    output_this_month->connect_to(new SKOutputNumber("electrical.solar.epever1.output.thisMonth", "",
         new SKMetadata("J","Solar Output Month", "Solar charger output since 1st of this month", "Output Month")));
     
     output_this_year = new NumericSensor;
-    output_this_year->connect_to(new SKOutputNumber("/electrical/solar/epever1/output/thisYear", "",
+    output_this_year->connect_to(new SKOutputNumber("electrical.solar.epever1.output.thisYear", "",
         new SKMetadata("J","Solar Output Year", "Solar charger output since 1st January", "Output Year")));
     
     output_total = new NumericSensor;
-    output_total->connect_to(new SKOutputNumber("/electrical/solar/epever1/output/total", "",
+    output_total->connect_to(new SKOutputNumber("electrical.solar.epever1.output.total", "",
         new SKMetadata("J","Solar Output Total", "Solar charger output since last reset", "Output Total")));
         
     //queue requests every 15 seconds
