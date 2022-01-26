@@ -287,10 +287,23 @@ void handleError(Error error, uint32_t token)
   Serial.printf("Error response: %02X - %s\n", (int)me, (const char *)me);
 }
 
+void queueRequest(uint32_t address, uint32_t length)
+{
+  Error err = MB->addRequest(address, 1, READ_INPUT_REGISTER, address, length);
+  if (err!=SUCCESS) {
+    ModbusError e(err);
+    Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
+  }  
+}
+
+/**
+ * @brief Create ReactESP App
+ * 
+ */
 ReactESP app([]() {
-#ifndef SERIAL_DEBUG_DISABLED
-  SetupSerialDebug(115200);
-#endif
+  #ifndef SERIAL_DEBUG_DISABLED
+    SetupSerialDebug(115200);
+  #endif
   // Set up Serial2 connected to Modbus RTU
   Serial2.begin(115200, SERIAL_8N1, GPIO_NUM_16, GPIO_NUM_17);
   
@@ -311,8 +324,8 @@ ReactESP app([]() {
   SensESPAppBuilder builder;
   // Create the global SensESPApp() object.
   sensesp_app = builder.set_hostname("sksolar")
-//                    ->set_wifi("SSID", "password")
-                    ->set_standard_sensors(StandardSensors::WIFI_SIGNAL)
+  //                ->set_wifi("SSID", "password")
+                    ->set_standard_sensors(StandardSensors::NONE)
                     ->get_app();
 
     panel_voltage = new NumericSensor;
@@ -355,89 +368,57 @@ ReactESP app([]() {
     output_total->connect_to(new SKOutputNumber("electrical.solar.epever1.output.total", "",
         new SKMetadata("J","Solar Output Total", "Solar charger output since last reset", "Output Total")));
         
-    //queue requests every 15 seconds
-    app.onRepeat(15000, [] () {
-    
-    uint32_t Token;
-    Token = 0x3100;//B1-B4
-    Error err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x3100, 4);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
+    /**
+     * @brief queues a different request every second.  Repeats the sequence of requests every 15 seconds
+     * 
+     */
+    app.onRepeat(1000, [] () {
+      static uint16_t sequence = 0;
+      if (sequence >=15){sequence = 0;}
+      switch(sequence){
+        case 0 :
+          queueRequest(0x3100,4);//B1-B4
+          break;
+        case 1 :
+          queueRequest(0x331A,3);//D26-D28
+          break;
+        case 2 :
+          queueRequest(0x3106,2);//B7-B8
+          break;
+        case 3 :
+          queueRequest(0x310C, 4);//B13-B16
+          break;
+        case 4 :
+          queueRequest(0x311A, 2);//B27-B28
+          break;
+        case 5 :
+          queueRequest(0x3110, 2);//B17-B18
+          break;
+        case 6 :
+          queueRequest(0x311D, 1);//B30
+          break;
+        case 7 :
+          queueRequest(0x3200, 3);//C1,C2,C7
+          break;
+        case 8 :
+          queueRequest(0x3300, 4);//D0-D3
+          break;
+        case 9 :
+          queueRequest(0x9013, 3);//real time clock
+          break;
+      }
+      sequence++;
+    });
 
-    Token = 0x331A;//D26-D28
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x331A, 3);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
+        /**
+     * @brief queues a request every 15 minutes
+     * 
+     */
+    app.onRepeat(900000, [] () {
+      queueRequest(0x330C, 8);//D12-D19
+    });
 
-    Token = 0x3106;//B7-B8
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x3106, 2);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-
-    Token = 0x310C;//B13-B16
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x310C, 4);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-
-    Token = 0x311A;//B27-B28
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x311A, 2);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-
-    Token = 0x3110;//B17-B18
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x3110, 2);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-    
-    Token = 0x311D;//B30
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x311D, 1);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-    
-    Token = 0x3200;//C1,C2,C7
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x3200, 3);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-
-    Token = 0x3300;//D0-D3
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x3300, 4);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-
-    Token = 0x330C;//D12-D19
-    err = MB->addRequest(Token++, 1, READ_INPUT_REGISTER, 0x330C, 8);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-
-    Token = 0x9013;//real time clock
-    err = MB->addRequest(Token++, 1, READ_HOLD_REGISTER, 0x9013, 3);
-    if (err!=SUCCESS) {
-      ModbusError e(err);
-      Serial.printf("Error creating request: %02X - %s\n", (int)e, (const char *)e);
-    }
-  });
-
-  delay(2000);
-  // Start the SensESP application running
-  sensesp_app->enable();
+    delay(2000);
+    // Start the SensESP application running
+    sensesp_app->enable();
 });
