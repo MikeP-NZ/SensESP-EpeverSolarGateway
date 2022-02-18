@@ -1,27 +1,37 @@
 // Example code to show the usage of the eModbus library to retrieve data from an Epever Tracer 2206AN Solar charge controller and publish it to a signalK server
 // Please refer to root/Readme.md for a (more)full description.
 
+
 // Includes: <Arduino.h> for Serial etc.
-#include <Arduino.h>
+//#include <Arduino.h>
 #include "sensesp_app.h"
 #include "sensesp_app_builder.h"
-#include "signalk/signalk_output.h"
+#include "sensesp/sensors/sensor.h"
+#include "sensesp/signalk/signalk_output.h"
 #include "ModbusClientRTU.h"
-#include "sensor.h"
 //#define SERIAL_DEBUG_DISABLED = true
 
+#define Modbus_RX_pin GPIO_NUM_16
+#define Modbus_TX_pin GPIO_NUM_17
+
+using namespace sensesp;
+
+ReactESP app;
+
+const char *CHARGER_NAME = "epever1";
+
 ModbusClientRTU* MB;
-NumericSensor* panel_voltage;
-NumericSensor* panel_current;
-NumericSensor* charger_voltage;
-NumericSensor* charger_current;
-NumericSensor* charger_temperature;
-NumericSensor* load_current;
-NumericSensor* battery_temperature;
-NumericSensor* output_today;
-NumericSensor* output_this_month;
-NumericSensor* output_this_year;
-NumericSensor* output_total;
+FloatSensor* panel_voltage;
+FloatSensor* panel_current;
+FloatSensor* charger_voltage;
+FloatSensor* charger_current;
+FloatSensor* charger_temperature;
+FloatSensor* load_current;
+FloatSensor* battery_temperature;
+FloatSensor* output_today;
+FloatSensor* output_this_month;
+FloatSensor* output_this_year;
+FloatSensor* output_total;
 StringSensor* charging_mode;
 
 
@@ -34,16 +44,16 @@ float battery_chg_power;
 float load_voltage;
 float load_power;
 float battery_SOC;
-uint8_t battery_volt_state;
-uint8_t battery_temperature_state;
-uint8_t controller_input_state;
-uint8_t controller_charging_state;
-uint8_t RTC_second;
-uint8_t RTC_minute;
-uint8_t RTC_hour;
-uint8_t RTC_day;
-uint8_t RTC_month;
-uint8_t RTC_year;
+uint16_t battery_volt_state;
+uint16_t battery_temperature_state;
+uint16_t controller_input_state;
+uint16_t controller_charging_state;
+uint16_t RTC_second;
+uint16_t RTC_minute;
+uint16_t RTC_hour;
+uint16_t RTC_day;
+uint16_t RTC_month;
+uint16_t RTC_year;
 
 
   inline static const char *getBatteryVoltStatusText(uint16_t value) {
@@ -300,12 +310,13 @@ void queueRequest(uint32_t address, uint32_t length)
  * @brief Create ReactESP App
  * 
  */
-ReactESP app([]() {
+
+void setup(){
   #ifndef SERIAL_DEBUG_DISABLED
     SetupSerialDebug(115200);
   #endif
   // Set up Serial2 connected to Modbus RTU
-  Serial2.begin(115200, SERIAL_8N1, GPIO_NUM_16, GPIO_NUM_17);
+  Serial2.begin(115200, SERIAL_8N1, Modbus_RX_pin, Modbus_TX_pin);
   
   // Set up ModbusRTU client.
   // Create a ModbusRTU client instance
@@ -319,53 +330,55 @@ ReactESP app([]() {
   MB->setTimeout(2000);
   // Start ModbusRTU background task
   MB->begin();
+  
+  delay(2000);//give wifi time to initialise
 
   // Create a builder object
   SensESPAppBuilder builder;
   // Create the global SensESPApp() object.
-  sensesp_app = builder.set_hostname("sksolar")
-  //                ->set_wifi("SSID", "password")
-                    ->set_standard_sensors(StandardSensors::NONE)
+  sensesp_app = (&builder)
+                    ->set_hostname("sksolar")
+  //                ->set_wifi("SSID", "password") // if wifi credentials are not set here then connect to the ESP32 and set it using a browser.
                     ->get_app();
 
-    panel_voltage = new NumericSensor;
-    panel_voltage->connect_to(new SKOutputNumber("electrical.solar.epever1.panelVoltage", "", new SKMetadata("V")));
+    panel_voltage = new FloatSensor;
+    panel_voltage->connect_to(new SKOutputFloat ("electrical.solar.epever1.panelVoltage", "", new SKMetadata("V")));
 
-    panel_current = new NumericSensor;
-    panel_current->connect_to(new SKOutputNumber("electrical.solar.epever1.panelCurrent", "", new SKMetadata("A")));
+    panel_current = new FloatSensor;
+    panel_current->connect_to(new SKOutputFloat ("electrical.solar.epever1.panelCurrent", "", new SKMetadata("A")));
     
     charging_mode = new StringSensor;
     charging_mode->connect_to(new SKOutputString("electrical.solar.epever1.chargingMode", ""));
     
-    charger_voltage = new NumericSensor;
-    charger_voltage->connect_to(new SKOutputNumber("electrical.solar.epever1.Voltage", "", new SKMetadata("V")));
+    charger_voltage = new FloatSensor;
+    charger_voltage->connect_to(new SKOutputFloat ("electrical.solar.epever1.Voltage", "", new SKMetadata("V")));
     
-    charger_current = new NumericSensor;
-    charger_current->connect_to(new SKOutputNumber("electrical.solar.epever1.Current", "", new SKMetadata("A")));
+    charger_current = new FloatSensor;
+    charger_current->connect_to(new SKOutputFloat ("electrical.solar.epever1.Current", "", new SKMetadata("A")));
     
-    load_current = new NumericSensor;
-    load_current->connect_to(new SKOutputNumber("electrical.solar.epever1.loadCurrent", "", new SKMetadata("A")));
+    load_current = new FloatSensor;
+    load_current->connect_to(new SKOutputFloat ("electrical.solar.epever1.loadCurrent", "", new SKMetadata("A")));
     
-    charger_temperature = new NumericSensor;
-    charger_temperature->connect_to(new SKOutputNumber("electrical.solar.epever1.temperature", "", new SKMetadata("K")));
+    charger_temperature = new FloatSensor;
+    charger_temperature->connect_to(new SKOutputFloat ("electrical.solar.epever1.temperature", "", new SKMetadata("K")));
     
-    battery_temperature = new NumericSensor;
-    battery_temperature->connect_to(new SKOutputNumber("electrical.batteries.house.temperature", "", new SKMetadata("K")));
+    battery_temperature = new FloatSensor;
+    battery_temperature->connect_to(new SKOutputFloat ("electrical.batteries.house.temperature", "", new SKMetadata("K")));
     
-    output_today = new NumericSensor;
-    output_today->connect_to(new SKOutputNumber("electrical.solar.epever1.output.thisDay", "",
+    output_today = new FloatSensor;
+    output_today->connect_to(new SKOutputFloat ("electrical.solar.epever1.output.thisDay", "",
         new SKMetadata("J","Solar Output Today", "Solar charger output since midnight today", "Output Day")));
     
-    output_this_month = new NumericSensor;
-    output_this_month->connect_to(new SKOutputNumber("electrical.solar.epever1.output.thisMonth", "",
+    output_this_month = new FloatSensor;
+    output_this_month->connect_to(new SKOutputFloat ("electrical.solar.epever1.output.thisMonth", "",
         new SKMetadata("J","Solar Output Month", "Solar charger output since 1st of this month", "Output Month")));
     
-    output_this_year = new NumericSensor;
-    output_this_year->connect_to(new SKOutputNumber("electrical.solar.epever1.output.thisYear", "",
+    output_this_year = new FloatSensor;
+    output_this_year->connect_to(new SKOutputFloat ("electrical.solar.epever1.output.thisYear", "",
         new SKMetadata("J","Solar Output Year", "Solar charger output since 1st January", "Output Year")));
     
-    output_total = new NumericSensor;
-    output_total->connect_to(new SKOutputNumber("electrical.solar.epever1.output.total", "",
+    output_total = new FloatSensor;
+    output_total->connect_to(new SKOutputFloat ("electrical.solar.epever1.output.total", "",
         new SKMetadata("J","Solar Output Total", "Solar charger output since last reset", "Output Total")));
         
     /**
@@ -410,7 +423,7 @@ ReactESP app([]() {
       sequence++;
     });
 
-        /**
+     /**
      * @brief queues a request every 15 minutes
      * 
      */
@@ -418,7 +431,9 @@ ReactESP app([]() {
       queueRequest(0x330C, 8);//D12-D19
     });
 
-    delay(2000);
-    // Start the SensESP application running
-    sensesp_app->enable();
-});
+}
+/**
+ * @brief Loop Function
+ * 
+ */
+void loop() {app.tick();}
