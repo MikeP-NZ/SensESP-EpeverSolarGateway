@@ -3,11 +3,11 @@
 
 
 // Includes: <Arduino.h> for Serial etc.
-//#include <Arduino.h>
-#include "sensesp_app.h"
-#include "sensesp_app_builder.h"
+#include <Arduino.h>
+//#include "sensesp_app.h"
 #include "sensesp/sensors/sensor.h"
 #include "sensesp/signalk/signalk_output.h"
+#include "sensesp_app_builder.h"
 #include "ModbusClientRTU.h"
 //#define SERIAL_DEBUG_DISABLED = true
 
@@ -16,9 +16,9 @@
 
 using namespace sensesp;
 
-ReactESP app;
+reactesp::ReactESP app;
 
-const char *CHARGER_NAME = "epever1";
+const String CHARGER_NAME = "epever1";
 
 ModbusClientRTU* MB;
 FloatSensor* panel_voltage;
@@ -296,7 +296,12 @@ void handleError(Error error, uint32_t token)
   ModbusError me(error);
   Serial.printf("Error response: %02X - %s\n", (int)me, (const char *)me);
 }
-
+/**
+ * @brief Adds a read request to the queue
+ * 
+ * @param address Start address to read
+ * @param length Number of bytes to be read
+ */
 void queueRequest(uint32_t address, uint32_t length)
 {
   Error err = MB->addRequest(address, 1, READ_INPUT_REGISTER, address, length);
@@ -312,6 +317,7 @@ void queueRequest(uint32_t address, uint32_t length)
  */
 
 void setup(){
+  String skPath;
   #ifndef SERIAL_DEBUG_DISABLED
     SetupSerialDebug(115200);
   #endif
@@ -340,45 +346,57 @@ void setup(){
                     ->set_hostname("sksolar")
   //                ->set_wifi("SSID", "password") // if wifi credentials are not set here then connect to the ESP32 and set it using a browser.
                     ->get_app();
-
+    skPath = "electrical.solar." + CHARGER_NAME + ".panelVoltage";
     panel_voltage = new FloatSensor;
-    panel_voltage->connect_to(new SKOutputFloat ("electrical.solar.epever1.panelVoltage", "", new SKMetadata("V")));
+    //panel_voltage->connect_to(new SKOutputFloat ("electrical.solar.epever1.panelVoltage", "", new SKMetadata("V")));
+    panel_voltage->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("V")));
 
+    skPath = "electrical.solar." + CHARGER_NAME + ".panelCurrent";
     panel_current = new FloatSensor;
-    panel_current->connect_to(new SKOutputFloat ("electrical.solar.epever1.panelCurrent", "", new SKMetadata("A")));
+    panel_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".chargingMode";
     charging_mode = new StringSensor;
-    charging_mode->connect_to(new SKOutputString("electrical.solar.epever1.chargingMode", ""));
+    charging_mode->connect_to(new SKOutputString(skPath, ""));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".Voltage";
     charger_voltage = new FloatSensor;
-    charger_voltage->connect_to(new SKOutputFloat ("electrical.solar.epever1.Voltage", "", new SKMetadata("V")));
+    charger_voltage->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("V")));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".Current";
     charger_current = new FloatSensor;
-    charger_current->connect_to(new SKOutputFloat ("electrical.solar.epever1.Current", "", new SKMetadata("A")));
+    charger_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".loadCurrent";
     load_current = new FloatSensor;
-    load_current->connect_to(new SKOutputFloat ("electrical.solar.epever1.loadCurrent", "", new SKMetadata("A")));
+    load_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".temperature";
     charger_temperature = new FloatSensor;
-    charger_temperature->connect_to(new SKOutputFloat ("electrical.solar.epever1.temperature", "", new SKMetadata("K")));
+    charger_temperature->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("K")));
     
+    skPath = "electrical.batteries.house.temperature";
     battery_temperature = new FloatSensor;
-    battery_temperature->connect_to(new SKOutputFloat ("electrical.batteries.house.temperature", "", new SKMetadata("K")));
+    battery_temperature->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("K")));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".output.thisDay";
     output_today = new FloatSensor;
-    output_today->connect_to(new SKOutputFloat ("electrical.solar.epever1.output.thisDay", "",
+    output_today->connect_to(new SKOutputFloat (skPath, "",
         new SKMetadata("J","Solar Output Today", "Solar charger output since midnight today", "Output Day")));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".output.thisMonth";
     output_this_month = new FloatSensor;
-    output_this_month->connect_to(new SKOutputFloat ("electrical.solar.epever1.output.thisMonth", "",
+    output_this_month->connect_to(new SKOutputFloat (skPath, "",
         new SKMetadata("J","Solar Output Month", "Solar charger output since 1st of this month", "Output Month")));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".output.thisYear";
     output_this_year = new FloatSensor;
-    output_this_year->connect_to(new SKOutputFloat ("electrical.solar.epever1.output.thisYear", "",
+    output_this_year->connect_to(new SKOutputFloat (skPath, "",
         new SKMetadata("J","Solar Output Year", "Solar charger output since 1st January", "Output Year")));
     
+    skPath = "electrical.solar." + CHARGER_NAME + ".output.total";
     output_total = new FloatSensor;
-    output_total->connect_to(new SKOutputFloat ("electrical.solar.epever1.output.total", "",
+    output_total->connect_to(new SKOutputFloat (skPath, "",
         new SKMetadata("J","Solar Output Total", "Solar charger output since last reset", "Output Total")));
         
     /**
@@ -430,7 +448,8 @@ void setup(){
     app.onRepeat(900000, [] () {
       queueRequest(0x330C, 8);//D12-D19
     });
-
+   // Start networking, SK server connections and other SensESP internals
+   sensesp_app->start();
 }
 /**
  * @brief Loop Function
