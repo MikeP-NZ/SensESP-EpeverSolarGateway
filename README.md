@@ -8,4 +8,6 @@ The Epever solar charge controller has an RJ-45 connector for the RS485 signal. 
 
 The code reads the controllers real time clock but doesn't post it to signalK. It is only displayed on the serial output.  The RTC is used to roll over the daily, monthly and annual production statistics.
 
+This code has been updated to run on the Heltec ESP32 Wifi Kit with an R485 to TTL serial converter connected to the RX/TX pins #defined in the code.
 
+There is a problem that the Epever 5V supply does not seem capable of supplying enough current to run the ESP32.  This needs about 200mA when the wifi transmits.

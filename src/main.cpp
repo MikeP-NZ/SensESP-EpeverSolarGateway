@@ -1,18 +1,15 @@
-// Example code to show the usage of the eModbus library to retrieve data from an Epever Tracer 2206AN Solar charge controller and publish it to a signalK server
-// Please refer to root/Readme.md for a (more)full description.
-
-
-// Includes: <Arduino.h> for Serial etc.
 #include <Arduino.h>
-//#include "sensesp_app.h"
-#include "sensesp/sensors/sensor.h"
-#include "sensesp/signalk/signalk_output.h"
 #include "sensesp_app_builder.h"
+#include "sensesp/signalk/signalk_output.h"
+#include "sensesp/sensors/sensor.h"
 #include "ModbusClientRTU.h"
+#include <Adafruit_SSD1306.h>
+#include <Fonts/FreeSans9pt7b.h>
+
 //#define SERIAL_DEBUG_DISABLED = true
 
-#define Modbus_RX_pin GPIO_NUM_16
-#define Modbus_TX_pin GPIO_NUM_17
+#define Modbus_RX_pin GPIO_NUM_26
+#define Modbus_TX_pin GPIO_NUM_27
 
 using namespace sensesp;
 
@@ -35,15 +32,15 @@ FloatSensor* output_total;
 StringSensor* charging_mode;
 
 
-float panel_power;
-float battery_nominal_voltage;
-float battery_voltage;
-float battery_current;
-float battery_power;
+float panel_power;//voltage output by the solar panel
+float battery_nominal_voltage;//Nominal voltage, eg 12v or 24v
+float battery_voltage;// Battery voltage
+float battery_current;//current into battery(charging is +ve/discharge -ve)
+float battery_power;//power into the battery(charging is +ve value)
 float battery_chg_power;
-float load_voltage;
-float load_power;
-float battery_SOC;
+float load_voltage;// voltage at the load terminal
+float load_power;// power going into the load
+float battery_SOC;// an approximate value based on the battery voltage
 uint16_t battery_volt_state;
 uint16_t battery_temperature_state;
 uint16_t controller_input_state;
@@ -54,6 +51,26 @@ uint16_t RTC_hour;
 uint16_t RTC_day;
 uint16_t RTC_month;
 uint16_t RTC_year;
+
+/**
+ * @brief Defines for Heltec ESP32 Wifi Kit
+ * 
+ */
+// SDA and SCL pins on ESP32
+#define OLED_SDA_PIN 4
+#define OLED_SCL_PIN 15
+#define OLED_RST_PIN 16
+#define V_IN_SENSE_PIN A0 //GPIO36 senses supply voltage
+//#define LED_BUILTIN 25
+#define V_EXT 21
+
+// OLED display width and height, in pixels
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+TwoWire* i2c;
+Adafruit_SSD1306* display;
+// removes adafruit logo from code
+#define SSD1306_NO_SPLASH 
 
 
   inline static const char *getBatteryVoltStatusText(uint16_t value) {
@@ -312,6 +329,35 @@ void queueRequest(uint32_t address, uint32_t length)
 }
 
 /**
+ * @brief Updates the text shown on an OLED display module
+ * 
+ */
+void UpdateDisplay() {
+  display->setFont(&FreeSans9pt7b);
+  display->clearDisplay();
+  display->setTextColor(SSD1306_WHITE);
+  display->setTextSize(1);
+  display->setCursor(0, 12);
+//  display->printf("%3.1fV", supply_voltage);
+  display->printf("%3.1fV", panel_voltage->get());
+  display->setCursor(0, 28);
+  display->printf("%3.1fA", panel_current->get());
+  display->setCursor(0, 44);
+  display->printf("%3.1fW", panel_power);
+  display->setCursor(64, 12);
+  display->printf("%3.1fV", battery_voltage);
+  display->setCursor(64, 28);
+  display->printf("%3.1fA", battery_current);
+  display->setCursor(64, 44);
+  display->printf("%3.1fC", battery_power);
+  display->setCursor(1, 59);
+  display->println(getControllerChargingStatusText(controller_charging_state));
+  //display->invertDisplay(true);
+  display->display();
+}
+
+
+/**
  * @brief Create ReactESP App
  * 
  */
@@ -337,6 +383,23 @@ void setup(){
   // Start ModbusRTU background task
   MB->begin();
   
+  // initialize the display
+  i2c = new TwoWire(0);
+  i2c->begin(OLED_SDA_PIN, OLED_SCL_PIN);
+  display = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, i2c, OLED_RST_PIN);
+  if (!display->begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println(F("SSD1306 allocation failed"));
+  }
+  delay(100);
+  // draw splash screen
+  display->setRotation(0);
+  display->clearDisplay();
+  display->setFont(&FreeSans9pt7b);
+  display->setTextColor(SSD1306_WHITE);
+  display->setTextSize(1);
+  display->setCursor(1, 14);
+  display->println("Solar Charger");
+  display->display();
   delay(2000);//give wifi time to initialise
 
   // Create a builder object
@@ -344,112 +407,116 @@ void setup(){
   // Create the global SensESPApp() object.
   sensesp_app = (&builder)
                     ->set_hostname("sksolar")
-  //                ->set_wifi("SSID", "password") // if wifi credentials are not set here then connect to the ESP32 and set it using a browser.
+                  //->set_wifi("SSID", "PASSWORD") // if wifi credentials are not set here then connect to the ESP32 and set it using a browser.
                     ->get_app();
-    skPath = "electrical.solar." + CHARGER_NAME + ".panelVoltage";
-    panel_voltage = new FloatSensor;
-    //panel_voltage->connect_to(new SKOutputFloat ("electrical.solar.epever1.panelVoltage", "", new SKMetadata("V")));
-    panel_voltage->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("V")));
+  skPath = "electrical.solar." + CHARGER_NAME + ".panelVoltage";
+  panel_voltage = new FloatSensor;
+  //panel_voltage->connect_to(new SKOutputFloat ("electrical.solar.epever1.panelVoltage", "", new SKMetadata("V")));
+  panel_voltage->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("V")));
 
-    skPath = "electrical.solar." + CHARGER_NAME + ".panelCurrent";
-    panel_current = new FloatSensor;
-    panel_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".chargingMode";
-    charging_mode = new StringSensor;
-    charging_mode->connect_to(new SKOutputString(skPath, ""));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".Voltage";
-    charger_voltage = new FloatSensor;
-    charger_voltage->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("V")));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".Current";
-    charger_current = new FloatSensor;
-    charger_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".loadCurrent";
-    load_current = new FloatSensor;
-    load_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".temperature";
-    charger_temperature = new FloatSensor;
-    charger_temperature->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("K")));
-    
-    skPath = "electrical.batteries.house.temperature";
-    battery_temperature = new FloatSensor;
-    battery_temperature->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("K")));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".output.thisDay";
-    output_today = new FloatSensor;
-    output_today->connect_to(new SKOutputFloat (skPath, "",
-        new SKMetadata("J","Solar Output Today", "Solar charger output since midnight today", "Output Day")));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".output.thisMonth";
-    output_this_month = new FloatSensor;
-    output_this_month->connect_to(new SKOutputFloat (skPath, "",
-        new SKMetadata("J","Solar Output Month", "Solar charger output since 1st of this month", "Output Month")));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".output.thisYear";
-    output_this_year = new FloatSensor;
-    output_this_year->connect_to(new SKOutputFloat (skPath, "",
-        new SKMetadata("J","Solar Output Year", "Solar charger output since 1st January", "Output Year")));
-    
-    skPath = "electrical.solar." + CHARGER_NAME + ".output.total";
-    output_total = new FloatSensor;
-    output_total->connect_to(new SKOutputFloat (skPath, "",
-        new SKMetadata("J","Solar Output Total", "Solar charger output since last reset", "Output Total")));
-        
+  skPath = "electrical.solar." + CHARGER_NAME + ".panelCurrent";
+  panel_current = new FloatSensor;
+  panel_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".chargingMode";
+  charging_mode = new StringSensor;
+  charging_mode->connect_to(new SKOutputString(skPath, ""));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".Voltage";
+  charger_voltage = new FloatSensor;
+  charger_voltage->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("V")));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".Current";
+  charger_current = new FloatSensor;
+  charger_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".loadCurrent";
+  load_current = new FloatSensor;
+  load_current->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("A")));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".temperature";
+  charger_temperature = new FloatSensor;
+  charger_temperature->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("K")));
+  
+  skPath = "electrical.batteries.house.temperature";
+  battery_temperature = new FloatSensor;
+  battery_temperature->connect_to(new SKOutputFloat (skPath, "", new SKMetadata("K")));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".output.thisDay";
+  output_today = new FloatSensor;
+  output_today->connect_to(new SKOutputFloat (skPath, "",
+      new SKMetadata("J","Solar Output Today", "Solar charger output since midnight today", "Output Day")));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".output.thisMonth";
+  output_this_month = new FloatSensor;
+  output_this_month->connect_to(new SKOutputFloat (skPath, "",
+      new SKMetadata("J","Solar Output Month", "Solar charger output since 1st of this month", "Output Month")));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".output.thisYear";
+  output_this_year = new FloatSensor;
+  output_this_year->connect_to(new SKOutputFloat (skPath, "",
+      new SKMetadata("J","Solar Output Year", "Solar charger output since 1st January", "Output Year")));
+  
+  skPath = "electrical.solar." + CHARGER_NAME + ".output.total";
+  output_total = new FloatSensor;
+  output_total->connect_to(new SKOutputFloat (skPath, "",
+      new SKMetadata("J","Solar Output Total", "Solar charger output since last reset", "Output Total")));
+  
+  /**
+   * @brief queues a different request every second.  Repeats the sequence of requests every 15 seconds
+   * 
+   */
+  app.onRepeat(1000, [] () {
+    static uint16_t sequence = 0;
+    if (sequence >=15){sequence = 0;}
+    switch(sequence){
+      case 0 :
+        queueRequest(0x3100,4);//B1-B4
+        break;
+      case 1 :
+        queueRequest(0x331A,3);//D26-D28
+        break;
+      case 2 :
+        queueRequest(0x3106,2);//B7-B8
+        break;
+      case 3 :
+        queueRequest(0x310C, 4);//B13-B16
+        break;
+      case 4 :
+        queueRequest(0x311A, 2);//B27-B28
+        break;
+      case 5 :
+        queueRequest(0x3110, 2);//B17-B18
+        break;
+      case 6 :
+        queueRequest(0x311D, 1);//B30
+        break;
+      case 7 :
+        queueRequest(0x3200, 3);//C1,C2,C7
+        break;
+      case 8 :
+        queueRequest(0x3300, 4);//D0-D3
+        break;
+      case 9 :
+        queueRequest(0x9013, 3);//real time clock
+        break;
+    }
+    sequence++;
+  });
+
     /**
-     * @brief queues a different request every second.  Repeats the sequence of requests every 15 seconds
-     * 
-     */
-    app.onRepeat(1000, [] () {
-      static uint16_t sequence = 0;
-      if (sequence >=15){sequence = 0;}
-      switch(sequence){
-        case 0 :
-          queueRequest(0x3100,4);//B1-B4
-          break;
-        case 1 :
-          queueRequest(0x331A,3);//D26-D28
-          break;
-        case 2 :
-          queueRequest(0x3106,2);//B7-B8
-          break;
-        case 3 :
-          queueRequest(0x310C, 4);//B13-B16
-          break;
-        case 4 :
-          queueRequest(0x311A, 2);//B27-B28
-          break;
-        case 5 :
-          queueRequest(0x3110, 2);//B17-B18
-          break;
-        case 6 :
-          queueRequest(0x311D, 1);//B30
-          break;
-        case 7 :
-          queueRequest(0x3200, 3);//C1,C2,C7
-          break;
-        case 8 :
-          queueRequest(0x3300, 4);//D0-D3
-          break;
-        case 9 :
-          queueRequest(0x9013, 3);//real time clock
-          break;
-      }
-      sequence++;
-    });
-
-     /**
-     * @brief queues a request every 15 minutes
-     * 
-     */
-    app.onRepeat(900000, [] () {
-      queueRequest(0x330C, 8);//D12-D19
-    });
-   // Start networking, SK server connections and other SensESP internals
-   sensesp_app->start();
+   * @brief queues a request every 15 minutes
+   * 
+   */
+  app.onRepeat(900000, [] () {
+    queueRequest(0x330C, 8);//D12-D19
+  });
+  display->println("Starting App");
+  display->display();
+  // Start networking, SK server connections and other SensESP internals
+  sensesp_app->start();
+  display->println("App Started");
+  display->display();
 }
 /**
  * @brief Loop Function
